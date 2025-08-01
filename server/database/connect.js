@@ -1,24 +1,22 @@
-import mysql from 'mysql2/promise';
+const mysql = require('mysql2/promise');
+require('dotenv').config();
 
 console.log('Connecting to the database');
-const connection = await mysql.createConnection({
-    host: 'localhost',
-    user: 'root',
-    password: 'password',
-    database: 'urbanloft',
-});
-console.log('Connected to the database');
 
-await connection.connect((err) => {
-    if (err) {
-        console.log(err);
-    } else {
+const createConnection = async () => {
+    try {
+        const connection = await mysql.createConnection({
+            host: process.env.DB_HOST || 'localhost',
+            user: process.env.DB_USER || 'root',
+            password: process.env.DB_PASSWORD || 'password',
+            database: process.env.DB_NAME || 'urbanloft',
+        });
         console.log('Connected to the database');
+        return connection;
+    } catch (err) {
+        console.error('Database connection failed:', err);
+        throw err;
     }
-});
+};
 
-const [results, fields] = await connection.execute('SELECT * FROM user');
-console.log(results);
-console.log(fields);
-
-export default connection;
+module.exports = createConnection();

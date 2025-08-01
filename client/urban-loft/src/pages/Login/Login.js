@@ -1,61 +1,79 @@
-import useAuth from "../../hooks/useAuth";
 import { useForm } from "react-hook-form";
+import { useAuth } from "../../hooks/useAuth";
 import { useNavigate } from "react-router-dom";
 import "./Login.css";
-const Login = () => {
-  const navigate = useNavigate();
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm();
+
+export default function Login() {
+  const { register, handleSubmit, formState: { errors }, setError } = useForm();
   const { login } = useAuth();
+  const navigate = useNavigate();
+
   const onSubmit = async (data) => {
     try {
-      const response = await login(data);
-      if(response) {
-        // perform redirect
-        // navigate("/dashboard");
+      const response = await fetch("http://localhost:5000/api/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
 
-        // or show alert
+      const result = await response.json();
+
+      if (response.status === 200) {
+        login(result.token, result.user);
         alert("Login successful");
+        navigate("/dashboard");
+      } else {
+        if (result.general) {
+          setError("root", { message: result.general });
+        }
       }
     } catch (error) {
-      console.log(error);
+      console.error("Login error:", error);
+      setError("root", { message: "Login failed. Please try again." });
     }
   };
-  return (
-    <>
-      <form className="register-form" onSubmit={handleSubmit(onSubmit)}>
-        <input
-          className="form-item"
-          {...register("email", { required: "Email is required" })}
-          type="email"
-          placeholder="Email"
-          value="testuser@gmail.com"
-        />
-        <input
-          className="form-item"
-          {...register("password", { required: "Password is required" })}
-          type="password"
-          placeholder="Password"
-          value="25BT6ma022@"
-        />
-        <div className="button-container">
-          <button className="form-item-button" type="submit">
-            Login
-          </button>
-          <button
-            className="form-item-button"
-            type="button"
-            onClick={() => navigate("/register")}
-          >
-            Register
-          </button>
-        </div>
-      </form>
-    </>
-  );
-};
 
-export default Login;
+  return (
+    <form onSubmit={handleSubmit(onSubmit)}>
+      <div className="login-form">
+        <h2>Login</h2>
+        
+        {errors.root && <div className="error-message">{errors.root.message}</div>}
+        
+        <input
+          className="form-item"
+          {...register("email", { 
+            required: "Email is required",
+            pattern: {
+              value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+              message: "Please enter a valid email address"
+            }
+          })}
+          type="email"
+          placeholder="*Email"
+        />
+        {errors.email && <span className="error-text">{errors.email.message}</span>}
+        
+        <input
+          className="form-item"
+          {...register("password", { 
+            required: "Password is required"
+          })}
+          type="password"
+          placeholder="*Password"
+        />
+        {errors.password && <span className="error-text">{errors.password.message}</span>}
+        
+        <div>
+          <input className="form-item-button" type="submit" value="LOGIN" />
+        </div>
+        
+        <div className="form-links">
+          <p>Don't have an account? <a href="/">Register here</a></p>
+        </div>
+      </div>
+    </form>
+  );
+}

@@ -1,36 +1,48 @@
-import { createContext, useState } from "react";
+import { createContext, useState, useEffect } from "react";
 export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  const [token, setToken] = useState(null);
-  const [user, setUser] = useState(null);
-  const login = async (data) => {
-    try {
-      const response = await fetch("http://localhost:5000/api/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(data),
-      });
+  const [token, setToken] = useState(localStorage.getItem('token'));
+  const [user, setUser] = useState(() => {
+    const savedUser = localStorage.getItem('user');
+    return savedUser ? JSON.parse(savedUser) : null;
+  });
 
-      if (response.status === 200) {
-        const data = await response.json();
-        setToken(data.token);
-        localStorage.setItem("token", data.token);
-      }
-
-      return true;
-    } catch (error) {
-      console.log(error);
-      return false;
-    }
+  const login = (authToken, userData) => {
+    setToken(authToken);
+    setUser(userData);
+    localStorage.setItem('token', authToken);
+    localStorage.setItem('user', JSON.stringify(userData));
   };
+
   const logout = () => {
     setToken(null);
-    localStorage.removeItem("token");
+    setUser(null);
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
   };
 
-  const value = { token, user, login, logout };
+  const isAuthenticated = () => {
+    return token !== null && user !== null;
+  };
+
+  useEffect(() => {
+    const storedToken = localStorage.getItem('token');
+    const storedUser = localStorage.getItem('user');
+    
+    if (storedToken && storedUser) {
+      setToken(storedToken);
+      setUser(JSON.parse(storedUser));
+    }
+  }, []);
+
+  const value = { 
+    token, 
+    user, 
+    login, 
+    logout, 
+    isAuthenticated: isAuthenticated() 
+  };
+  
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

@@ -97,6 +97,10 @@ export default function Register() {
         <div>
           <input className="form-item-button" type="submit" value="REGISTER"></input>
         </div>
+        
+        <div className="form-links">
+          <p>Already have an account? <a href="/login">Login here</a></p>
+        </div>
       </div>
     </form>
   );

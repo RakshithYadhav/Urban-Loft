@@ -7,14 +7,14 @@ import { AuthProvider } from "./pages/Auth/AuthContext";
 function App() {
   return (
     <div className="page-container">
-      <BrowserRouter>
-        <AuthProvider>
+      <AuthProvider>
+        <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Login />} />
-            <Route path="/register" element={<Register />} />
+            <Route path="/" element={<Register />} />
+            <Route path="/login" element={<Login />} />
           </Routes>
-        </AuthProvider>
-      </BrowserRouter>
+        </BrowserRouter>
+      </AuthProvider>
     </div>
   );
 }

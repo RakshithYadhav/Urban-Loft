@@ -1,8 +1,12 @@
-export const isEmptyOrNull = (str) => {
+const isEmptyOrNull = (str) => {
   return !str || str.trim().length === 0;
 }
 
-export const isNotEmptyOrNull = (str) => {
+const isNotEmptyOrNull = (str) => {
   return !isEmptyOrNull(str);
 }
 
+module.exports = {
+  isEmptyOrNull,
+  isNotEmptyOrNull
+};

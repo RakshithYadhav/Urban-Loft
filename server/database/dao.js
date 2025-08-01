@@ -1,15 +1,33 @@
-import connection from "./connect.js";  
-import bcrypt from "bcryptjs";
-import { isEmptyOrNull } from "../utils/StringUtil.js";
+
+const connectionPromise = require("./connect");
+const bcrypt = require("bcryptjs");
+const { isEmptyOrNull } = require('../utils/StringUtil');
+const { validateUserData, validateUserAddress } = require('../utils/ValidationUtil');
 const saltRounds = 10;
 
+/**
+ * Data Access Object for database operations
+ */
 class Dao {
   constructor() {
-    this.connection = connection;
+    this.connectionPromise = connectionPromise;
   }
 
+  async getConnection() {
+    return await this.connectionPromise;
+  }
+
+  /**
+   * Insert a new user into the database
+   * @param {Object} userData - User data object
+   * @param {string} userData.first_name - User's first name
+   * @param {string} userData.last_name - User's last name
+   * @param {string} userData.email - User's email address
+   * @param {string} userData.password - User's password
+   * @returns {Promise<Object>} Result object with success status and user_id or errors
+   */
   async insertUser(userData) {
-    const { isValid, errors } = this._validateUserData(userData);
+    const { isValid, errors } = validateUserData(userData);
     if (!isValid) {
       return { success: false, errors };
     }
@@ -18,17 +36,18 @@ class Dao {
     const { first_name, last_name, email, password } = userData;
     const salt = bcrypt.genSaltSync(saltRounds);
     const hashedPassword = bcrypt.hashSync(password, salt);
+    
     try {
-      const [results ] = await this.connection.execute(query, [
+      const connection = await this.getConnection();
+      const [result] = await connection.execute(query, [
         first_name,
         last_name,
         email,
         hashedPassword,
       ]);
-      
-      return { success: true, user_id: results.insertId };
+      return { success: true, user_id: result.insertId };
     } catch (error) {
-      console.log(error);
+      console.error('Insert user operation failed:', error);
       return {
         success: false,
         errors: { general: "Insert user operation failed." },
@@ -36,19 +55,29 @@ class Dao {
     }
   }
 
+  /**
+   * Insert user address into the database
+   * @param {Object} userAddressData - Address data object
+   * @param {string} userAddressData.address_line1 - Address line 1
+   * @param {string} userAddressData.address_line2 - Address line 2
+   * @param {string} userAddressData.city - City
+   * @param {string} userAddressData.state - State
+   * @param {string} userAddressData.postal_code - Postal code
+   * @param {string} userAddressData.country - Country
+   * @param {number} userId - User ID to associate the address with
+   * @returns {Promise<Object>} Result object with success status and user_address_id or errors
+   */
   async insertUserAddress(userAddressData, userId) {
-    const { isValid, errors } = this._validateUserAddress(userAddressData);
+    const { isValid, errors } = validateUserAddress(userAddressData);
     if (!isValid) {
       return { success: false, errors };
     }
 
-    const query = `INSERT INTO 
-                    user_address (user_id, address_line1, address_line2, city, state, postal_code, country) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?)`;
-    const { address_line1, address_line2, city, state, postal_code, country } =
-      userAddressData;
+    const query = `INSERT INTO user_address (user_id, address_line1, address_line2, city, state, postal_code, country) VALUES (?, ?, ?, ?, ?, ?, ?)`;
+    const { address_line1, address_line2, city, state, postal_code, country } = userAddressData;
+    
     try {
-      const [results] = await this.connection.execute(query, [
+      const result = await this.connection.execute(query, [
         userId,
         address_line1,
         address_line2,
@@ -57,83 +86,54 @@ class Dao {
         postal_code,
         country,
       ]);
-      return { success: true, user_address_id: results.insertId };
+      return { success: true, user_address_id: result.insertId };
     } catch (error) {
-      console.log(error);
+      console.error('Insert address operation failed:', error);
       return {
         success: false,
-        errors: { general: "Insert Address operation failed." },
+        errors: { general: "Insert address operation failed." },
       };
     }
   }
 
-  async getUserByEmail(email) {
-    const query = `SELECT * FROM user WHERE email = ? LIMIT 1`;
+  /**
+   * Authenticate user login
+   * @param {string} email - User's email address
+   * @param {string} password - User's password
+   * @returns {Promise<Object>} Result object with success status and user data or errors
+   */
+  async authenticateUser(email, password) {
+    if (isEmptyOrNull(email) || isEmptyOrNull(password)) {
+      return { success: false, errors: { general: "Email and password are required" } };
+    }
+
+    const query = `SELECT user_id, first_name, last_name, email, password_hash FROM user WHERE email = ?`;
+    
     try {
-      const [results] = await this.connection.execute(query, [email]);
-      return results[0];
+      const [rows] = await this.connection.execute(query, [email]);
+      
+      if (rows.length === 0) {
+        return { success: false, errors: { general: "Invalid email or password" } };
+      }
+
+      const user = rows[0];
+      const isPasswordValid = bcrypt.compareSync(password, user.password_hash);
+
+      if (!isPasswordValid) {
+        return { success: false, errors: { general: "Invalid email or password" } };
+      }
+
+      const { password_hash, ...userWithoutPassword } = user;
+      return { success: true, user: userWithoutPassword };
     } catch (error) {
-      console.log(error);
-      return null;
+      console.error('Authentication failed:', error);
+      return {
+        success: false,
+        errors: { general: "Authentication failed." },
+      };
     }
   }
 
-  _validateUserData(userData) {
-    let errors = {};
-    let isOk = true;
-    let passwordRegex =
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-
-    if (isEmptyOrNull(userData.first_name)) {
-      errors.first_name = "First name is required";
-      isOk = false;
-    }
-
-    if (isEmptyOrNull(userData.email)) {
-      errors.email = "Email is required";
-      isOk = false;
-    }
-
-    if (isEmptyOrNull(userData.password)) {
-      errors.password = "Password is required";
-      isOk = false;
-    } else if (!passwordRegex.test(userData.password)) {
-      errors.password =
-        "Password must contain at least 8 characters, one uppercase, one lowercase, one number and one special character";
-      isOk = false;
-    }
-
-    return { isValid: isOk, errors };
-  }
-
-  _validateUserAddress(userAddressData) {
-    let errors = {};
-    let isOk = true;
-
-    if (isEmptyOrNull(userAddressData.address_line1)) {
-      errors.address_line1 = "Address line 1 is required";
-      isOk = false;
-    }
-    if (isEmptyOrNull(userAddressData.city)) {
-      errors.city = "City is required";
-      isOk = false;
-    }
-    if (isEmptyOrNull(userAddressData.state)) {
-      errors.state = "State is required";
-      isOk = false;
-    }
-    if (isEmptyOrNull(userAddressData.postal_code)) {
-      errors.postal_code = "Postal code is required";
-      isOk = false;
-    }
-    if (isEmptyOrNull(userAddressData.country)) {
-      errors.country = "Country is required";
-      isOk = false;
-    }
-
-    return { isValid: isOk, errors };
-  }
 }
 
-export default Dao;
-// module.exports = Dao;
+module.exports = Dao;
