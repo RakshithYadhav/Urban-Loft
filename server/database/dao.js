@@ -77,7 +77,8 @@ class Dao {
     const { address_line1, address_line2, city, state, postal_code, country } = userAddressData;
     
     try {
-      const result = await this.connection.execute(query, [
+      const connection = await this.getConnection();
+      const [result] = await connection.execute(query, [
         userId,
         address_line1,
         address_line2,
@@ -97,6 +98,101 @@ class Dao {
   }
 
   /**
+   * Get all products with optional pagination
+   * @param {number} limit - Maximum number of products to return
+   * @param {number} offset - Number of products to skip
+   * @returns {Promise<Object>} Result object with success status and products array or errors
+   */
+  async getAllProducts(limit = 20, offset = 0) {
+    const query = `
+      SELECT p.product_id, p.name, p.description, p.price, p.image_url, p.available, p.created_at,
+             i.stock_level
+      FROM product p
+      LEFT JOIN inventory i ON p.product_id = i.product_id
+      WHERE p.available = 1
+      ORDER BY p.created_at DESC
+      LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}
+    `;
+    
+    try {
+      const connection = await this.getConnection();
+      const [rows] = await connection.execute(query);
+      return { success: true, products: rows };
+    } catch (error) {
+      console.error('Get products operation failed:', error);
+      return {
+        success: false,
+        errors: { general: "Failed to retrieve products." },
+      };
+    }
+  }
+
+  /**
+   * Get a single product by ID
+   * @param {number} productId - Product ID
+   * @returns {Promise<Object>} Result object with success status and product data or errors
+   */
+  async getProductById(productId) {
+    if (!productId || isNaN(productId)) {
+      return { success: false, errors: { general: "Valid product ID is required" } };
+    }
+
+    const query = `
+      SELECT p.product_id, p.name, p.description, p.price, p.image_url, p.available, p.created_at,
+             i.stock_level, i.reorder_threshold
+      FROM product p
+      LEFT JOIN inventory i ON p.product_id = i.product_id
+      WHERE p.product_id = ? AND p.available = 1
+    `;
+    
+    try {
+      const connection = await this.getConnection();
+      const [rows] = await connection.execute(query, [productId]);
+      
+      if (rows.length === 0) {
+        return { success: false, errors: { general: "Product not found" } };
+      }
+
+      return { success: true, product: rows[0] };
+    } catch (error) {
+      console.error('Get product by ID operation failed:', error);
+      return {
+        success: false,
+        errors: { general: "Failed to retrieve product." },
+      };
+    }
+  }
+
+  /**
+   * Get featured products for homepage
+   * @param {number} limit - Maximum number of featured products to return
+   * @returns {Promise<Object>} Result object with success status and products array or errors
+   */
+  async getFeaturedProducts(limit = 8) {
+    const query = `
+      SELECT p.product_id, p.name, p.description, p.price, p.image_url, p.available, p.created_at,
+             i.stock_level
+      FROM product p
+      LEFT JOIN inventory i ON p.product_id = i.product_id
+      WHERE p.available = 1 AND i.stock_level > 0
+      ORDER BY p.created_at DESC
+      LIMIT ${parseInt(limit)}
+    `;
+    
+    try {
+      const connection = await this.getConnection();
+      const [rows] = await connection.execute(query);
+      return { success: true, products: rows };
+    } catch (error) {
+      console.error('Get featured products operation failed:', error);
+      return {
+        success: false,
+        errors: { general: "Failed to retrieve featured products." },
+      };
+    }
+  }
+
+  /**
    * Authenticate user login
    * @param {string} email - User's email address
    * @param {string} password - User's password
@@ -110,7 +206,8 @@ class Dao {
     const query = `SELECT user_id, first_name, last_name, email, password_hash FROM user WHERE email = ?`;
     
     try {
-      const [rows] = await this.connection.execute(query, [email]);
+      const connection = await this.getConnection();
+      const [rows] = await connection.execute(query, [email]);
       
       if (rows.length === 0) {
         return { success: false, errors: { general: "Invalid email or password" } };

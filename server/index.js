@@ -67,6 +67,76 @@ app.post("/api/login", async (req, res) => {
   }
 });
 
+// Product API routes
+app.get("/api/products", async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = parseInt(req.query.offset) || 0;
+    
+    const dao = new Dao();
+    const result = await dao.getAllProducts(limit, offset);
+
+    if (!result.success) {
+      res.status(500).json(result.errors);
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      products: result.products,
+      count: result.products.length
+    });
+  } catch (error) {
+    console.error('Get products error:', error);
+    res.status(500).json({ general: "Failed to retrieve products" });
+  }
+});
+
+app.get("/api/products/featured", async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 8;
+    
+    const dao = new Dao();
+    const result = await dao.getFeaturedProducts(limit);
+
+    if (!result.success) {
+      res.status(500).json(result.errors);
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      products: result.products,
+      count: result.products.length
+    });
+  } catch (error) {
+    console.error('Get featured products error:', error);
+    res.status(500).json({ general: "Failed to retrieve featured products" });
+  }
+});
+
+app.get("/api/products/:id", async (req, res) => {
+  try {
+    const productId = parseInt(req.params.id);
+    
+    const dao = new Dao();
+    const result = await dao.getProductById(productId);
+
+    if (!result.success) {
+      res.status(404).json(result.errors);
+      return;
+    }
+
+    res.status(200).json({
+      success: true,
+      product: result.product
+    });
+  } catch (error) {
+    console.error('Get product by ID error:', error);
+    res.status(500).json({ general: "Failed to retrieve product" });
+  }
+});
+
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
